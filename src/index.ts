@@ -1,21 +1,10 @@
 import {Pool, PoolClient} from 'pg';
+import {Attribute, Manager, Statement, StringMap} from './metadata';
 
-export interface StringMap {
-  [key: string]: string;
-}
-export interface Statement {
-  query: string;
-  args?: any[];
-}
+export * from './metadata';
+export * from './build';
+export * from './batch';
 
-export interface Manager {
-  exec(sql: string, args?: any[]): Promise<number>;
-  execute(statements: Statement[]): Promise<number>;
-  query<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T[]>;
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T>;
-  executeScalar<T>(sql: string, args?: any[]): Promise<T>;
-  count(sql: string, args?: any[]): Promise<number>;
-}
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
     this.exec = this.exec.bind(this);
@@ -31,11 +20,11 @@ export class PoolManager implements Manager {
   execute(statements: Statement[]): Promise<number> {
     return execute(this.pool, statements);
   }
-  query<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T[]> {
-    return query(this.pool, sql, args, m, fields);
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+    return query(this.pool, sql, args, m, bools);
   }
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T> {
-    return queryOne(this.pool, sql, args, m, fields);
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
+    return queryOne(this.pool, sql, args, m, bools);
   }
   executeScalar<T>(sql: string, args?: any[]): Promise<T> {
     return executeScalar<T>(this.pool, sql, args);
@@ -59,11 +48,11 @@ export class PoolClientManager implements Manager {
   execute(statements: Statement[]): Promise<number> {
     return executeWithClient(this.client, statements);
   }
-  query<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T[]> {
-    return queryWithclient(this.client, sql, args, m, fields);
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+    return queryWithclient(this.client, sql, args, m, bools);
   }
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T> {
-    return queryOneWithClient(this.client, sql, args, m, fields);
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
+    return queryOneWithClient(this.client, sql, args, m, bools);
   }
   executeScalar<T>(sql: string, args?: any[]): Promise<T> {
     return executeScalarWithclient<T>(this.client, sql, args);
@@ -75,7 +64,7 @@ export class PoolClientManager implements Manager {
 export async function execute(pool: Pool, statements: Statement[]): Promise<number> {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query('begin');
     const arrPromise = statements.map((item) => client.query(item.query, item.args ? item.args : []));
     let c = 0;
     await Promise.all(arrPromise).then(results => {
@@ -83,20 +72,27 @@ export async function execute(pool: Pool, statements: Statement[]): Promise<numb
         c += obj.rowCount;
       }
     });
-    await client.query('COMMIT');
+    await client.query('commit');
     return c;
   } catch (e) {
-    await client.query('ROLLBACK');
+    await client.query('rollback');
     throw e;
   } finally {
     client.release();
   }
+}
+function buildError(err: any): any {
+  if (err.code === '23505') {
+    err.error = 'duplicate';
+  }
+  return err;
 }
 export function exec(pool: Pool, sql: string, args?: any[]): Promise<number> {
   const p = toArray(args);
   return new Promise<number>((resolve, reject) => {
     return pool.query(sql, p, (err, results) => {
       if (err) {
+        buildError(err);
         return reject(err);
       } else {
         return resolve(results.rowCount);
@@ -104,20 +100,20 @@ export function exec(pool: Pool, sql: string, args?: any[]): Promise<number> {
     });
   });
 }
-export function query<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T[]> {
+export function query<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
   const p = toArray(args);
   return new Promise<T[]>((resolve, reject) => {
     return pool.query<T>(sql, p, (err, results) => {
       if (err) {
         return reject(err);
       } else {
-        return resolve(handleResults(results.rows, m, fields));
+        return resolve(handleResults(results.rows, m, bools));
       }
     });
   });
 }
-export function queryOne<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T> {
-  return query<T>(pool, sql, args, m, fields).then(r => {
+export function queryOne<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
+  return query<T>(pool, sql, args, m, bools).then(r => {
     return (r && r.length > 0 ? r[0] : null);
   });
 }
@@ -137,7 +133,7 @@ export function count(pool: Pool, sql: string, args?: any[]): Promise<number> {
 
 export async function executeWithClient(client: PoolClient, statements: Statement[]): Promise<number> {
   try {
-    await client.query('BEGIN');
+    await client.query('begin');
     const arrPromise = statements.map((item) => client.query(item.query, item.args ? item.args : []));
     let c = 0;
     await Promise.all(arrPromise).then(results => {
@@ -145,10 +141,10 @@ export async function executeWithClient(client: PoolClient, statements: Statemen
         c += obj.rowCount;
       }
     });
-    await client.query('COMMIT');
+    await client.query('commit');
     return c;
   } catch (e) {
-    await client.query('ROLLBACK');
+    await client.query('rollback');
     throw e;
   }
 }
@@ -157,6 +153,7 @@ export function execWithClient(client: PoolClient, sql: string, args?: any[]): P
   return new Promise<number>((resolve, reject) => {
     return client.query(sql, p, (err, results) => {
       if (err) {
+        buildError(err);
         return reject(err);
       } else {
         return resolve(results.rowCount);
@@ -164,20 +161,20 @@ export function execWithClient(client: PoolClient, sql: string, args?: any[]): P
     });
   });
 }
-export function queryWithclient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T[]> {
+export function queryWithclient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
   const p = toArray(args);
   return new Promise<T[]>((resolve, reject) => {
     return client.query<T>(sql, p, (err, results) => {
       if (err) {
         return reject(err);
       } else {
-        return resolve(handleResults(results.rows, m, fields));
+        return resolve(handleResults(results.rows, m, bools));
       }
     });
   });
 }
-export function queryOneWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, fields?: string[]): Promise<T> {
-  return queryWithclient<T>(client, sql, args, m, fields).then(r => {
+export function queryOneWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
+  return queryWithclient<T>(client, sql, args, m, bools).then(r => {
     return (r && r.length > 0 ? r[0] : null);
   });
 }
@@ -210,32 +207,38 @@ export function toArray<T>(arr: T[]): T[] {
   }
   return p;
 }
-export function handleResults<T>(r: T[], m?: StringMap, fields?: string[]) {
+export function handleResults<T>(r: T[], m?: StringMap, bools?: Attribute[]) {
   if (m) {
     const res = mapArray(r, m);
-    if (fields && fields.length > 0) {
-      return handleBool(res, fields);
+    if (bools && bools.length > 0) {
+      return handleBool(res, bools);
     } else {
       return res;
     }
   } else {
-    if (fields && fields.length > 0) {
-      return handleBool(r, fields);
+    if (bools && bools.length > 0) {
+      return handleBool(r, bools);
     } else {
       return r;
     }
   }
 }
-export function handleBool<T>(objs: T[], fields: string[]) {
-  if (!fields || fields.length === 0 || !objs) {
+export function handleBool<T>(objs: T[], bools: Attribute[]) {
+  if (!bools || bools.length === 0 || !objs) {
     return objs;
   }
   for (const obj of objs) {
-    for (const field of fields) {
-      const value = obj[field];
+    for (const field of bools) {
+      const value = obj[field.name];
       if (value != null && value !== undefined) {
-        // tslint:disable-next-line:triple-equals
-        obj[field] = ('1' == value || 'T' === value || 'Y' === value);
+        const b = field.true;
+        if (b == null || b === undefined) {
+          // tslint:disable-next-line:triple-equals
+          obj[field.name] = ('1' == value || 'T' == value || 'Y' == value);
+        } else {
+          // tslint:disable-next-line:triple-equals
+          obj[field.name] = (value == b ? true : false);
+        }
       }
     }
   }
@@ -284,4 +287,29 @@ export function mapArray<T>(results: T[], m?: StringMap): T[] {
     objs.push(obj2);
   }
   return objs;
+}
+
+export class StringService {
+  constructor(protected pool: Pool, public table: string, public column: string) {
+    this.load = this.load.bind(this);
+    this.save = this.save.bind(this);
+  }
+  load(key: string, max: number): Promise<string[]> {
+    const s = `select ${this.column} from ${this.table} where ${this.column} ilike $1 order by ${this.column} fetch next ${max} rows only`;
+    return query(this.pool, s, ['' + key + '%']).then(arr => {
+      return arr.map(i => i[this.column] as string);
+    });
+  }
+  save(values: string[]): Promise<number> {
+    if (!values || values.length === 0) {
+      return Promise.resolve(0);
+    }
+    const arr: string[] = [];
+    for (let i = 1; i <= values.length; i++) {
+      arr.push('($' + i + ')');
+      i++;
+    }
+    const s = `insert into ${this.table}(${this.column})values${arr.join(',')} on conflict do nothing`;
+    return exec(this.pool, s, values);
+  }
 }
