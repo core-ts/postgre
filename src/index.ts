@@ -1,9 +1,9 @@
 import {Pool, PoolClient} from 'pg';
-import {Attribute, Manager, Statement, StringMap} from './metadata';
+import {save, saveBatch} from './build';
+import {Attribute, Attributes, Manager, Statement, StringMap} from './metadata';
 
 export * from './metadata';
 export * from './build';
-export * from './batch';
 
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
@@ -288,6 +288,50 @@ export function mapArray<T>(results: T[], m?: StringMap): T[] {
   }
   return objs;
 }
+export function getFields(fields: string[], all?: string[]): string[] {
+  if (!fields || fields.length === 0) {
+    return undefined;
+  }
+  const ext: string [] = [];
+  if (all) {
+    for (const s of fields) {
+      if (all.includes(s)) {
+        ext.push(s);
+      }
+    }
+    if (ext.length === 0) {
+      return undefined;
+    } else {
+      return ext;
+    }
+  } else {
+    return fields;
+  }
+}
+export function buildFields(fields: string[], all?: string[]): string {
+  const s = getFields(fields, all);
+  if (!s || s.length === 0) {
+    return '*';
+  } else {
+    return s.join(',');
+  }
+}
+export function getMapField(name: string, mp?: StringMap): string {
+  if (!mp) {
+    return name;
+  }
+  const x = mp[name];
+  if (!x) {
+    return name;
+  }
+  if (typeof x === 'string') {
+    return x;
+  }
+  return name;
+}
+export function isEmpty(s: string): boolean {
+  return !(s && s.length > 0);
+}
 
 export class StringService {
   constructor(protected pool: Pool, public table: string, public column: string) {
@@ -312,4 +356,158 @@ export class StringService {
     const s = `insert into ${this.table}(${this.column})values${arr.join(',')} on conflict do nothing`;
     return exec(this.pool, s, values);
   }
+}
+
+export function version(attrs: Attributes): Attribute {
+  const ks = Object.keys(attrs);
+  for (const k of ks) {
+    const attr = attrs[k];
+    if (attr.version) {
+      attr.name = k;
+      return attr;
+    }
+  }
+  return undefined;
+}
+export class PostgreSQLWriter<T> {
+  pool?: Pool;
+  version?: string;
+  exec?: (sql: string, args?: any[]) => Promise<number>;
+  map?: (v: T) => T;
+  param?: (i: number) => string;
+  constructor(pool: Pool|((sql: string, args?: any[]) => Promise<number>), public table: string, public attributes: Attributes, toDB?: (v: T) => T, buildParam?: (i: number) => string) {
+    this.write = this.write.bind(this);
+    if (typeof pool === 'function') {
+      this.exec = pool;
+    } else {
+      this.pool = pool;
+    }
+    this.param = buildParam;
+    this.map = toDB;
+    const x = version(attributes);
+    if (x) {
+      this.version = x.name;
+    }
+  }
+  write(obj: T): Promise<number> {
+    if (!obj) {
+      return Promise.resolve(0);
+    }
+    let obj2 = obj;
+    if (this.map) {
+      obj2 = this.map(obj);
+    }
+    const stmt = save(obj2, this.table, this.attributes, this.version, this.param);
+    if (stmt) {
+      if (this.exec) {
+        return this.exec(stmt.query, stmt.args);
+      } else {
+        return exec(this.pool, stmt.query, stmt.args);
+      }
+    } else {
+      return Promise.resolve(0);
+    }
+  }
+}
+export class PostgreSQLBatchWriter<T> {
+  pool?: Pool;
+  version?: string;
+  execute?: (statements: Statement[]) => Promise<number>;
+  map?: (v: T) => T;
+  param?: (i: number) => string;
+  constructor(pool: Pool|((statements: Statement[]) => Promise<number>), public table: string, public attributes: Attributes, toDB?: (v: T) => T, buildParam?: (i: number) => string) {
+    this.write = this.write.bind(this);
+    if (typeof pool === 'function') {
+      this.execute = pool;
+    } else {
+      this.pool = pool;
+    }
+    this.param = buildParam;
+    this.map = toDB;
+    const x = version(attributes);
+    if (x) {
+      this.version = x.name;
+    }
+  }
+  write(objs: T[]): Promise<number> {
+    if (!objs || objs.length === 0) {
+      return Promise.resolve(0);
+    }
+    let list = objs;
+    if (this.map) {
+      list = [];
+      for (const obj of objs) {
+        const obj2 = this.map(obj);
+        list.push(obj2);
+      }
+    }
+    const stmts = saveBatch(list, this.table, this.attributes, this.version, this.param);
+    if (stmts && stmts.length > 0) {
+      if (this.execute) {
+        return this.execute(stmts);
+      } else {
+        return execute(this.pool, stmts);
+      }
+    } else {
+      return Promise.resolve(0);
+    }
+  }
+}
+
+export interface AnyMap {
+  [key: string]: any;
+}
+export class PostgreSQLChecker {
+  constructor(private pool: Pool, private service?: string, private timeout?: number) {
+    if (!this.timeout) {
+      this.timeout = 4200;
+    }
+    if (!this.service) {
+      this.service = 'postgre';
+    }
+    this.check = this.check.bind(this);
+    this.name = this.name.bind(this);
+    this.build = this.build.bind(this);
+  }
+  async check(): Promise<AnyMap> {
+    const obj = {} as AnyMap;
+    await this.pool.connect();
+    const promise = new Promise<any>((resolve, reject) => {
+      this.pool.query('select now()', (err, result) => {
+        if (err) {
+          return reject(err);
+        } else {
+          resolve(obj);
+        }
+      });
+    });
+    if (this.timeout > 0) {
+      return promiseTimeOut(this.timeout, promise);
+    } else {
+      return promise;
+    }
+  }
+  name(): string {
+    return this.service;
+  }
+  build(data: AnyMap, err: any): AnyMap {
+    if (err) {
+      if (!data) {
+        data = {} as AnyMap;
+      }
+      data['error'] = err;
+    }
+    return data;
+  }
+}
+
+function promiseTimeOut(timeoutInMilliseconds: number, promise: Promise<any>): Promise<any> {
+  return Promise.race([
+    promise,
+    new Promise((resolve, reject) => {
+      setTimeout(() => {
+        reject(`Timed out in: ${timeoutInMilliseconds} milliseconds!`);
+      }, timeoutInMilliseconds);
+    })
+  ]);
 }
