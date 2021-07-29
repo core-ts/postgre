@@ -49,16 +49,16 @@ export class PoolClientManager implements Manager {
     return executeWithClient(this.client, statements);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
-    return queryWithclient(this.client, sql, args, m, bools);
+    return queryWithClient(this.client, sql, args, m, bools);
   }
   queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
     return queryOneWithClient(this.client, sql, args, m, bools);
   }
   executeScalar<T>(sql: string, args?: any[]): Promise<T> {
-    return executeScalarWithclient<T>(this.client, sql, args);
+    return executeScalarWithClient<T>(this.client, sql, args);
   }
   count(sql: string, args?: any[]): Promise<number> {
-    return countWithclient(this.client, sql, args);
+    return countWithClient(this.client, sql, args);
   }
 }
 export async function execute(pool: Pool, statements: Statement[]): Promise<number> {
@@ -161,7 +161,7 @@ export function execWithClient(client: PoolClient, sql: string, args?: any[]): P
     });
   });
 }
-export function queryWithclient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+export function queryWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
   const p = toArray(args);
   return new Promise<T[]>((resolve, reject) => {
     return client.query<T>(sql, p, (err, results) => {
@@ -174,11 +174,11 @@ export function queryWithclient<T>(client: PoolClient, sql: string, args?: any[]
   });
 }
 export function queryOneWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
-  return queryWithclient<T>(client, sql, args, m, bools).then(r => {
+  return queryWithClient<T>(client, sql, args, m, bools).then(r => {
     return (r && r.length > 0 ? r[0] : null);
   });
 }
-export function executeScalarWithclient<T>(client: PoolClient, sql: string, args?: any[]): Promise<T> {
+export function executeScalarWithClient<T>(client: PoolClient, sql: string, args?: any[]): Promise<T> {
   return queryOneWithClient<T>(client, sql, args).then(r => {
     if (!r) {
       return null;
@@ -188,8 +188,8 @@ export function executeScalarWithclient<T>(client: PoolClient, sql: string, args
     }
   });
 }
-export function countWithclient(client: PoolClient, sql: string, args?: any[]): Promise<number> {
-  return executeScalarWithclient<number>(client, sql, args);
+export function countWithClient(client: PoolClient, sql: string, args?: any[]): Promise<number> {
+  return executeScalarWithClient<number>(client, sql, args);
 }
 
 export function toArray<T>(arr: T[]): T[] {
