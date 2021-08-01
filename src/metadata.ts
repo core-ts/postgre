@@ -1,3 +1,10 @@
+export interface Config {
+  host?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  database?: string;
+}
 export interface StringMap {
   [key: string]: string;
 }

@@ -3,17 +3,29 @@ import {Attribute, Attributes, Statement, StringMap} from './metadata';
 export function param(i: number): string {
   return '$' + i;
 }
+export function params(length: number, from?: number): string[] {
+  if (from === undefined || from == null) {
+    from = 0;
+  }
+  const ps: string[] = [];
+  for (let i = 1; i <= length; i++) {
+    ps.push(param(i + from));
+  }
+  return ps;
+}
 export interface Metadata {
   keys: Attribute[];
   bools?: Attribute[];
   map?: StringMap;
   version?: string;
+  fields?: string[];
 }
 export function metadata(attrs: Attributes): Metadata {
   const mp: StringMap = {};
   const ks = Object.keys(attrs);
   const ats: Attribute[] = [];
   const bools: Attribute[] = [];
+  const fields: string[] = [];
   let ver: string;
   let isMap = false;
   for (const k of ks) {
@@ -21,6 +33,9 @@ export function metadata(attrs: Attributes): Metadata {
     attr.name = k;
     if (attr.key) {
       ats.push(attr);
+    }
+    if (!attr.ignored) {
+      fields.push(k);
     }
     if (attr.type === 'boolean') {
       bools.push(attr);
@@ -35,7 +50,7 @@ export function metadata(attrs: Attributes): Metadata {
       isMap = true;
     }
   }
-  const m: Metadata = {keys: ats, version: ver};
+  const m: Metadata = {keys: ats, fields, version: ver};
   if (isMap) {
     m.map = mp;
   }
@@ -44,7 +59,7 @@ export function metadata(attrs: Attributes): Metadata {
   }
   return m;
 }
-export function save<T>(obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Statement {
+export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Statement {
   if (!i) {
     i = 1;
   }
@@ -63,8 +78,11 @@ export function save<T>(obj: T, table: string, attrs: Attributes, ver?: string, 
     if (attr.key) {
       pks.push(attr);
     }
-    const v = obj[k];
-    if (v != null && v !== undefined && !attr.ignored && !attr.noinsert) {
+    let v = obj[k];
+    if (v === undefined || v == null) {
+      v = attr.default;
+    }
+    if (v !== undefined && v != null && !attr.ignored && !attr.noinsert) {
       const field = (attr.field ? attr.field : k);
       cols.push(field);
       if (k === ver) {
@@ -74,11 +92,10 @@ export function save<T>(obj: T, table: string, attrs: Attributes, ver?: string, 
         if (v === '') {
           values.push(`''`);
         } else if (typeof v === 'number') {
-          values.push(`${v}`);
+          values.push(toString(v));
         } else {
-          const p = buildParam(i);
+          const p = buildParam(i++);
           values.push(p);
-          i++;
           if (typeof v === 'boolean') {
             if (v === true) {
               const v2 = (attr.true ? attr.true : '1');
@@ -121,10 +138,9 @@ export function save<T>(obj: T, table: string, attrs: Attributes, ver?: string, 
           } else if (v === '') {
             x = `''`;
           } else if (typeof v === 'number') {
-            x = `${v}`;
+            x = toString(v);
           } else {
-            x = buildParam(i);
-            i++;
+            x = buildParam(i++);
             if (typeof v === 'boolean') {
               if (v === true) {
                 const v2 = (attr.true ? '' + attr.true : '1');
@@ -155,7 +171,7 @@ export function save<T>(obj: T, table: string, attrs: Attributes, ver?: string, 
     }
   }
 }
-export function saveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Statement[] {
+export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Statement[] {
   if (!buildParam) {
     buildParam = param;
   }
@@ -174,7 +190,10 @@ export function saveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: 
     let isVersion = false;
     for (const k of ks) {
       const attr = attrs[k];
-      const v = obj[k];
+      let v = obj[k];
+      if (v === undefined || v == null) {
+        v = attr.default;
+      }
       if (v != null && v !== undefined && !attr.ignored && !attr.noinsert) {
         const field = (attr.field ? attr.field : k);
         cols.push(field);
@@ -185,11 +204,10 @@ export function saveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: 
           if (v === '') {
             values.push(`''`);
           } else if (typeof v === 'number') {
-            values.push(`${v}`);
+            values.push(toString(v));
           } else {
-            const p = buildParam(i);
+            const p = buildParam(i++);
             values.push(p);
-            i++;
             if (typeof v === 'boolean') {
               if (v === true) {
                 const v2 = (attr.true ? attr.true : '1');
@@ -224,10 +242,9 @@ export function saveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: 
           } else if (v === '') {
             x = `''`;
           } else if (typeof v === 'number') {
-            x = `${v}`;
+            x = toString(v);
           } else {
-            x = buildParam(i);
-            i++;
+            x = buildParam(i++);
             if (typeof v === 'boolean') {
               if (v === true) {
                 const v2 = (attr.true ? '' + attr.true : '1');
@@ -260,4 +277,12 @@ export function saveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: 
     }
   }
   return sts;
+}
+const n = 'NaN';
+export function toString(v: number): string {
+  let x = '' + v;
+  if (x === n) {
+    x = 'null';
+  }
+  return x;
 }

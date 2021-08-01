@@ -1,5 +1,5 @@
-import {Pool, PoolClient} from 'pg';
-import {save, saveBatch} from './build';
+import {Pool, PoolClient, QueryResult, QueryResultRow} from 'pg';
+import {buildToSave, buildToSaveBatch} from './build';
 import {Attribute, Attributes, Manager, Statement, StringMap} from './metadata';
 
 export * from './metadata';
@@ -33,6 +33,7 @@ export class PoolManager implements Manager {
     return count(this.pool, sql, args);
   }
 }
+// tslint:disable-next-line:max-classes-per-file
 export class PoolClientManager implements Manager {
   constructor(public client: PoolClient) {
     this.exec = this.exec.bind(this);
@@ -43,24 +44,77 @@ export class PoolClientManager implements Manager {
     this.count = this.count.bind(this);
   }
   exec(sql: string, args?: any[]): Promise<number> {
-    return execWithClient(this.client, sql, args);
+    return exec(this.client, sql, args);
   }
   execute(statements: Statement[]): Promise<number> {
     return executeWithClient(this.client, statements);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
-    return queryWithClient(this.client, sql, args, m, bools);
+    return query(this.client, sql, args, m, bools);
   }
   queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
-    return queryOneWithClient(this.client, sql, args, m, bools);
+    return queryOne(this.client, sql, args, m, bools);
   }
   executeScalar<T>(sql: string, args?: any[]): Promise<T> {
-    return executeScalarWithClient<T>(this.client, sql, args);
+    return executeScalar<T>(this.client, sql, args);
   }
   count(sql: string, args?: any[]): Promise<number> {
-    return countWithClient(this.client, sql, args);
+    return count(this.client, sql, args);
   }
 }
+function buildError(err: any): any {
+  if (err.code === '23505') {
+    err.error = 'duplicate';
+  }
+  return err;
+}
+export interface Query {
+  query<R extends QueryResultRow = any, I extends any[] = any[]>(queryText: string, values: I, callback: (err: Error, result: QueryResult<R>) => void): void;
+}
+export function exec(client: Query, sql: string, args?: any[]): Promise<number> {
+  const p = toArray(args);
+  return new Promise<number>((resolve, reject) => {
+    return client.query(sql, p, (err, results) => {
+      if (err) {
+        buildError(err);
+        return reject(err);
+      } else {
+        return resolve(results.rowCount);
+      }
+    });
+  });
+}
+export function query<T>(client: Query, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+  const p = toArray(args);
+  return new Promise<T[]>((resolve, reject) => {
+    return client.query<T>(sql, p, (err, results) => {
+      if (err) {
+        return reject(err);
+      } else {
+        return resolve(handleResults(results.rows, m, bools));
+      }
+    });
+  });
+}
+export function queryOne<T>(client: Query, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
+  return query<T>(client, sql, args, m, bools).then(r => {
+    return (r && r.length > 0 ? r[0] : null);
+  });
+}
+export function executeScalar<T>(client: Query, sql: string, args?: any[]): Promise<T> {
+  return queryOne<T>(client, sql, args).then(r => {
+    if (!r) {
+      return null;
+    } else {
+      const keys = Object.keys(r);
+      return r[keys[0]];
+    }
+  });
+}
+export function count(client: Query, sql: string, args?: any[]): Promise<number> {
+  return executeScalar<number>(client, sql, args);
+}
+
 export async function execute(pool: Pool, statements: Statement[]): Promise<number> {
   const client = await pool.connect();
   try {
@@ -81,56 +135,6 @@ export async function execute(pool: Pool, statements: Statement[]): Promise<numb
     client.release();
   }
 }
-function buildError(err: any): any {
-  if (err.code === '23505') {
-    err.error = 'duplicate';
-  }
-  return err;
-}
-export function exec(pool: Pool, sql: string, args?: any[]): Promise<number> {
-  const p = toArray(args);
-  return new Promise<number>((resolve, reject) => {
-    return pool.query(sql, p, (err, results) => {
-      if (err) {
-        buildError(err);
-        return reject(err);
-      } else {
-        return resolve(results.rowCount);
-      }
-    });
-  });
-}
-export function query<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
-  const p = toArray(args);
-  return new Promise<T[]>((resolve, reject) => {
-    return pool.query<T>(sql, p, (err, results) => {
-      if (err) {
-        return reject(err);
-      } else {
-        return resolve(handleResults(results.rows, m, bools));
-      }
-    });
-  });
-}
-export function queryOne<T>(pool: Pool, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
-  return query<T>(pool, sql, args, m, bools).then(r => {
-    return (r && r.length > 0 ? r[0] : null);
-  });
-}
-export function executeScalar<T>(pool: Pool, sql: string, args?: any[]): Promise<T> {
-  return queryOne<T>(pool, sql, args).then(r => {
-    if (!r) {
-      return null;
-    } else {
-      const keys = Object.keys(r);
-      return r[keys[0]];
-    }
-  });
-}
-export function count(pool: Pool, sql: string, args?: any[]): Promise<number> {
-  return executeScalar<number>(pool, sql, args);
-}
-
 export async function executeWithClient(client: PoolClient, statements: Statement[]): Promise<number> {
   try {
     await client.query('begin');
@@ -148,48 +152,18 @@ export async function executeWithClient(client: PoolClient, statements: Statemen
     throw e;
   }
 }
-export function execWithClient(client: PoolClient, sql: string, args?: any[]): Promise<number> {
-  const p = toArray(args);
-  return new Promise<number>((resolve, reject) => {
-    return client.query(sql, p, (err, results) => {
-      if (err) {
-        buildError(err);
-        return reject(err);
-      } else {
-        return resolve(results.rowCount);
-      }
-    });
-  });
+
+export function save<T>(client: Query, obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Promise<number> {
+  const s = buildToSave(obj, table, attrs, ver, buildParam);
+  return exec(client, s.query, s.args);
 }
-export function queryWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
-  const p = toArray(args);
-  return new Promise<T[]>((resolve, reject) => {
-    return client.query<T>(sql, p, (err, results) => {
-      if (err) {
-        return reject(err);
-      } else {
-        return resolve(handleResults(results.rows, m, bools));
-      }
-    });
-  });
+export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
+  const s = buildToSaveBatch(objs, table, attrs, ver, buildParam);
+  return execute(pool, s);
 }
-export function queryOneWithClient<T>(client: PoolClient, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T> {
-  return queryWithClient<T>(client, sql, args, m, bools).then(r => {
-    return (r && r.length > 0 ? r[0] : null);
-  });
-}
-export function executeScalarWithClient<T>(client: PoolClient, sql: string, args?: any[]): Promise<T> {
-  return queryOneWithClient<T>(client, sql, args).then(r => {
-    if (!r) {
-      return null;
-    } else {
-      const keys = Object.keys(r);
-      return r[keys[0]];
-    }
-  });
-}
-export function countWithClient(client: PoolClient, sql: string, args?: any[]): Promise<number> {
-  return executeScalarWithClient<number>(client, sql, args);
+export function saveBatchWithClient<T>(client: PoolClient, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
+  const s = buildToSaveBatch(objs, table, attrs, ver, buildParam);
+  return executeWithClient(client, s);
 }
 
 export function toArray<T>(arr: T[]): T[] {
@@ -332,7 +306,7 @@ export function getMapField(name: string, mp?: StringMap): string {
 export function isEmpty(s: string): boolean {
   return !(s && s.length > 0);
 }
-
+// tslint:disable-next-line:max-classes-per-file
 export class StringService {
   constructor(protected pool: Pool, public table: string, public column: string) {
     this.load = this.load.bind(this);
@@ -369,7 +343,8 @@ export function version(attrs: Attributes): Attribute {
   }
   return undefined;
 }
-export class PostgreSQLWriter<T> {
+// tslint:disable-next-line:max-classes-per-file
+export class PostgreWriter<T> {
   pool?: Pool;
   version?: string;
   exec?: (sql: string, args?: any[]) => Promise<number>;
@@ -397,7 +372,7 @@ export class PostgreSQLWriter<T> {
     if (this.map) {
       obj2 = this.map(obj);
     }
-    const stmt = save(obj2, this.table, this.attributes, this.version, this.param);
+    const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param);
     if (stmt) {
       if (this.exec) {
         return this.exec(stmt.query, stmt.args);
@@ -409,7 +384,8 @@ export class PostgreSQLWriter<T> {
     }
   }
 }
-export class PostgreSQLBatchWriter<T> {
+// tslint:disable-next-line:max-classes-per-file
+export class PostgreBatchWriter<T> {
   pool?: Pool;
   version?: string;
   execute?: (statements: Statement[]) => Promise<number>;
@@ -441,7 +417,7 @@ export class PostgreSQLBatchWriter<T> {
         list.push(obj2);
       }
     }
-    const stmts = saveBatch(list, this.table, this.attributes, this.version, this.param);
+    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.version, this.param);
     if (stmts && stmts.length > 0) {
       if (this.execute) {
         return this.execute(stmts);
@@ -457,6 +433,7 @@ export class PostgreSQLBatchWriter<T> {
 export interface AnyMap {
   [key: string]: any;
 }
+// tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLChecker {
   constructor(private pool: Pool, private service?: string, private timeout?: number) {
     if (!this.timeout) {
