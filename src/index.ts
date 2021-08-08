@@ -8,7 +8,7 @@ export * from './build';
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
     this.exec = this.exec.bind(this);
-    this.execute = this.execute.bind(this);
+    this.execBatch = this.execBatch.bind(this);
     this.query = this.query.bind(this);
     this.queryOne = this.queryOne.bind(this);
     this.executeScalar = this.executeScalar.bind(this);
@@ -17,8 +17,8 @@ export class PoolManager implements Manager {
   exec(sql: string, args?: any[]): Promise<number> {
     return exec(this.pool, sql, args);
   }
-  execute(statements: Statement[]): Promise<number> {
-    return execute(this.pool, statements);
+  execBatch(statements: Statement[]): Promise<number> {
+    return execBatch(this.pool, statements);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
     return query(this.pool, sql, args, m, bools);
@@ -37,7 +37,7 @@ export class PoolManager implements Manager {
 export class PoolClientManager implements Manager {
   constructor(public client: PoolClient) {
     this.exec = this.exec.bind(this);
-    this.execute = this.execute.bind(this);
+    this.execBatch = this.execBatch.bind(this);
     this.query = this.query.bind(this);
     this.queryOne = this.queryOne.bind(this);
     this.executeScalar = this.executeScalar.bind(this);
@@ -46,7 +46,7 @@ export class PoolClientManager implements Manager {
   exec(sql: string, args?: any[]): Promise<number> {
     return exec(this.client, sql, args);
   }
-  execute(statements: Statement[]): Promise<number> {
+  execBatch(statements: Statement[]): Promise<number> {
     return executeWithClient(this.client, statements);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
@@ -115,7 +115,7 @@ export function count(client: Query, sql: string, args?: any[]): Promise<number>
   return executeScalar<number>(client, sql, args);
 }
 
-export async function execute(pool: Pool, statements: Statement[]): Promise<number> {
+export async function execBatch(pool: Pool, statements: Statement[]): Promise<number> {
   const client = await pool.connect();
   try {
     await client.query('begin');
@@ -153,13 +153,17 @@ export async function executeWithClient(client: PoolClient, statements: Statemen
   }
 }
 
-export function save<T>(client: Query, obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Promise<number> {
+export function save<T>(client: Query|((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Promise<number> {
   const s = buildToSave(obj, table, attrs, ver, buildParam);
-  return exec(client, s.query, s.args);
+  if (typeof client === 'function') {
+    return client(s.query, s.args);
+  } else {
+    return exec(client, s.query, s.args);
+  }
 }
 export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
   const s = buildToSaveBatch(objs, table, attrs, ver, buildParam);
-  return execute(pool, s);
+  return execBatch(pool, s);
 }
 export function saveBatchWithClient<T>(client: PoolClient, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
   const s = buildToSaveBatch(objs, table, attrs, ver, buildParam);
@@ -181,7 +185,7 @@ export function toArray<T>(arr: T[]): T[] {
   }
   return p;
 }
-export function handleResults<T>(r: T[], m?: StringMap, bools?: Attribute[]) {
+export function handleResults<T>(r: T[], m?: StringMap, bools?: Attribute[]): T[] {
   if (m) {
     const res = mapArray(r, m);
     if (bools && bools.length > 0) {
@@ -197,7 +201,7 @@ export function handleResults<T>(r: T[], m?: StringMap, bools?: Attribute[]) {
     }
   }
 }
-export function handleBool<T>(objs: T[], bools: Attribute[]) {
+export function handleBool<T>(objs: T[], bools: Attribute[]): T[] {
   if (!bools || bools.length === 0 || !objs) {
     return objs;
   }
@@ -208,7 +212,7 @@ export function handleBool<T>(objs: T[], bools: Attribute[]) {
         const b = field.true;
         if (b == null || b === undefined) {
           // tslint:disable-next-line:triple-equals
-          obj[field.name] = ('1' == value || 'T' == value || 'Y' == value);
+          obj[field.name] = ('true' == value || '1' == value || 'T' == value || 'Y' == value);
         } else {
           // tslint:disable-next-line:triple-equals
           obj[field.name] = (value == b ? true : false);
@@ -421,7 +425,7 @@ export class PostgreBatchWriter<T> {
       if (this.execute) {
         return this.execute(stmts);
       } else {
-        return execute(this.pool, stmts);
+        return execBatch(this.pool, stmts);
       }
     } else {
       return Promise.resolve(0);
