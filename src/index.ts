@@ -325,7 +325,6 @@ export class StringService {
     const arr: string[] = [];
     for (let i = 1; i <= values.length; i++) {
       arr.push('($' + i + ')');
-      i++;
     }
     const s = `insert into ${this.table}(${this.column})values${arr.join(',')} on conflict do nothing`;
     return exec(this.pool, s, values);
