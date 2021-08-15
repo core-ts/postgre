@@ -93,10 +93,16 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
           values.push(`''`);
         } else if (typeof v === 'number') {
           values.push(toString(v));
-        } else {
-          const p = buildParam(i++);
-          values.push(p);
-          if (typeof v === 'boolean') {
+        } else if (typeof v === 'boolean') {
+          if (attr.true === undefined) {
+            if (v === true) {
+              values.push(`true`);
+            } else {
+              values.push(`false`);
+            }
+          } else {
+            const p = buildParam(i++);
+            values.push(p);
             if (v === true) {
               const v2 = (attr.true ? attr.true : '1');
               args.push(v2);
@@ -104,9 +110,11 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
               const v2 = (attr.false ? attr.false : '0');
               args.push(v2);
             }
-          } else {
-            args.push(v);
           }
+        } else {
+          const p = buildParam(i++);
+          values.push(p);
+          args.push(v);
         }
       }
     }
@@ -139,19 +147,26 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
             x = `''`;
           } else if (typeof v === 'number') {
             x = toString(v);
-          } else {
-            x = buildParam(i++);
-            if (typeof v === 'boolean') {
+          } else if (typeof v === 'boolean') {
+            if (attr.true === undefined) {
               if (v === true) {
-                const v2 = (attr.true ? '' + attr.true : '1');
-                args.push(v2);
+                x = `true`;
               } else {
-                const v2 = (attr.false ? '' + attr.false : '0');
-                args.push(v2);
+                x = `false`;
               }
             } else {
-              args.push(v);
+              x = buildParam(i++);
+              if (v === true) {
+                const v2 = (attr.true ? attr.true : '1');
+                args.push(v2);
+              } else {
+                const v2 = (attr.false ? attr.false : '0');
+                args.push(v2);
+              }
             }
+          } else {
+            x = buildParam(i++);
+            args.push(v);
           }
           colSet.push(`${field}=${x}`);
         }
@@ -205,10 +220,16 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             values.push(`''`);
           } else if (typeof v === 'number') {
             values.push(toString(v));
-          } else {
-            const p = buildParam(i++);
-            values.push(p);
-            if (typeof v === 'boolean') {
+          } else if (typeof v === 'boolean') {
+            if (attr.true === undefined) {
+              if (v === true) {
+                values.push(`true`);
+              } else {
+                values.push(`false`);
+              }
+            } else {
+              const p = buildParam(i++);
+              values.push(p);
               if (v === true) {
                 const v2 = (attr.true ? attr.true : '1');
                 args.push(v2);
@@ -216,9 +237,11 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
                 const v2 = (attr.false ? attr.false : '0');
                 args.push(v2);
               }
-            } else {
-              args.push(v);
             }
+          } else {
+            const p = buildParam(i++);
+            values.push(p);
+            args.push(v);
           }
         }
       }
@@ -243,19 +266,26 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             x = `''`;
           } else if (typeof v === 'number') {
             x = toString(v);
-          } else {
-            x = buildParam(i++);
-            if (typeof v === 'boolean') {
+          } else if (typeof v === 'boolean') {
+            if (attr.true === undefined) {
               if (v === true) {
-                const v2 = (attr.true ? '' + attr.true : '1');
-                args.push(v2);
+                x = `true`;
               } else {
-                const v2 = (attr.false ? '' + attr.false : '0');
-                args.push(v2);
+                x = `false`;
               }
             } else {
-              args.push(v);
+              x = buildParam(i++);
+              if (v === true) {
+                const v2 = (attr.true ? attr.true : '1');
+                args.push(v2);
+              } else {
+                const v2 = (attr.false ? attr.false : '0');
+                args.push(v2);
+              }
             }
+          } else {
+            x = buildParam(i++);
+            args.push(v);
           }
           colSet.push(`${field}=${x}`);
         }

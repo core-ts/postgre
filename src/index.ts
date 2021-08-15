@@ -224,15 +224,15 @@ export function handleBool<T>(objs: T[], bools: Attribute[]): T[] {
   }
   for (const obj of objs) {
     for (const field of bools) {
-      const value = obj[field.name];
-      if (value != null && value !== undefined) {
+      const v = obj[field.name];
+      if (typeof v !== 'boolean' && v != null && v !== undefined ) {
         const b = field.true;
         if (b == null || b === undefined) {
           // tslint:disable-next-line:triple-equals
-          obj[field.name] = ('true' == value || '1' == value || 'T' == value || 'Y' == value);
+          obj[field.name] = ('true' == v || '1' == v || 't' == v || 'y' == v || 'on' == v);
         } else {
           // tslint:disable-next-line:triple-equals
-          obj[field.name] = (value == b ? true : false);
+          obj[field.name] = (v == b ? true : false);
         }
       }
     }
