@@ -123,7 +123,7 @@ export async function execBatch(pool: Pool, statements: Statement[]): Promise<nu
   const client = await pool.connect();
   try {
     await client.query('begin');
-    const arrPromise = statements.map(item => client.query(item.query, item.params ? item.params : []));
+    const arrPromise = statements.map(item => client.query(item.query, toArray(item.params)));
     let c = 0;
     await Promise.all(arrPromise).then(results => {
       for (const obj of results) {
@@ -142,7 +142,7 @@ export async function execBatch(pool: Pool, statements: Statement[]): Promise<nu
 export async function execBatchWithClient(client: PoolClient, statements: Statement[]): Promise<number> {
   try {
     await client.query('begin');
-    const arrPromise = statements.map((item) => client.query(item.query, item.params ? item.params : []));
+    const arrPromise = statements.map((item) => client.query(item.query, toArray(item.params)));
     let c = 0;
     await Promise.all(arrPromise).then(results => {
       for (const obj of results) {
