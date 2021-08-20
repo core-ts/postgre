@@ -21,8 +21,8 @@ export class PoolManager implements Manager {
   exec(sql: string, args?: any[]): Promise<number> {
     return exec(this.pool, sql, args);
   }
-  execBatch(statements: Statement[]): Promise<number> {
-    return execBatch(this.pool, statements);
+  execBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
+    return execBatch(this.pool, statements, firstSuccess);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
     return query(this.pool, sql, args, m, bools);
@@ -50,8 +50,8 @@ export class PoolClientManager implements Manager {
   exec(sql: string, args?: any[]): Promise<number> {
     return exec(this.client, sql, args);
   }
-  execBatch(statements: Statement[]): Promise<number> {
-    return execBatchWithClient(this.client, statements);
+  execBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
+    return execBatchWithClient(this.client, statements, firstSuccess);
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
     return query(this.client, sql, args, m, bools);
@@ -119,41 +119,108 @@ export function count(client: Query, sql: string, args?: any[]): Promise<number>
   return execScalar<number>(client, sql, args);
 }
 
-export async function execBatch(pool: Pool, statements: Statement[]): Promise<number> {
+export async function execBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+  if (!statements || statements.length === 0) {
+    return Promise.resolve(0);
+  } else if (statements.length === 1) {
+    return exec(pool, statements[0].query, statements[0].params);
+  }
   const client = await pool.connect();
-  try {
-    await client.query('begin');
-    const arrPromise = statements.map(item => client.query(item.query, toArray(item.params)));
-    let c = 0;
-    await Promise.all(arrPromise).then(results => {
-      for (const obj of results) {
-        c += obj.rowCount;
+  let c = 0;
+  if (firstSuccess) {
+    try {
+      await client.query('begin');
+      const result0  = await client.query(statements[0].query, statements[0].params)
+      if(result0.rowCount === 0){
+        return 0;
       }
-    });
-    await client.query('commit');
-    return c;
-  } catch (e) {
-    await client.query('rollback');
-    throw e;
-  } finally {
-    client.release();
+      let listStatements = statements.slice(1);
+      const arrPromise = listStatements.map((item) => {
+        return client.query(item.query, item.params ? item.params : []);
+      });
+      await Promise.all(arrPromise).then(results => {
+        for (const obj of results) {
+          c += obj.rowCount;
+        }
+      });
+      c += result0.rowCount;
+      await client.query('commit');
+      return c;
+    } catch (e) {
+      await client.query('rollback');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  else {
+    try {
+      await client.query('begin');
+      const arrPromise = statements.map((item, i) => {
+          return client.query(item.query, item.params ? item.params : [])
+      });
+      await Promise.all(arrPromise).then(results => {
+        for (const obj of results) {
+          c += obj.rowCount;
+        }
+      });
+      await client.query('commit');
+      return c;
+    } catch (e) {
+      await client.query('rollback');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 }
-export async function execBatchWithClient(client: PoolClient, statements: Statement[]): Promise<number> {
-  try {
-    await client.query('begin');
-    const arrPromise = statements.map((item) => client.query(item.query, toArray(item.params)));
-    let c = 0;
-    await Promise.all(arrPromise).then(results => {
-      for (const obj of results) {
-        c += obj.rowCount;
+export async function execBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+  if (!statements || statements.length === 0) {
+    return Promise.resolve(0);
+  } else if (statements.length === 1) {
+    return exec(client, statements[0].query, statements[0].params);
+  }
+  let c = 0;
+  if (firstSuccess) {
+    try {
+      await client.query('begin');
+      const result0  = await client.query(statements[0].query, statements[0].params)
+      if(result0.rowCount === 0){
+        return 0;
       }
-    });
-    await client.query('commit');
-    return c;
-  } catch (e) {
-    await client.query('rollback');
-    throw e;
+      let listStatements = statements.slice(1);
+      const arrPromise = listStatements.map((item) => {
+        return client.query(item.query, item.params ? item.params : []);
+      });
+      await Promise.all(arrPromise).then(results => {
+        for (const obj of results) {
+          c += obj.rowCount;
+        }
+      });
+      c += result0.rowCount;
+      await client.query('commit');
+      return c;
+    } catch (e) {
+      await client.query('rollback');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    try {
+      await client.query('begin');
+      const arrPromise = statements.map((item) => client.query(item.query, toArray(item.params)));
+      await Promise.all(arrPromise).then(results => {
+        for (const obj of results) {
+          c += obj.rowCount;
+        }
+      });
+      await client.query('commit');
+      return c;
+    } catch (e) {
+      await client.query('rollback');
+      throw e;
+    }
   }
 }
 
