@@ -123,41 +123,40 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
   if (!statements || statements.length === 0) {
     return Promise.resolve(0);
   } else if (statements.length === 1) {
-    return exec(pool, statements[0].query, statements[0].params);
+    return exec(pool, statements[0].query, toArray(statements[0].params));
   }
   const client = await pool.connect();
   let c = 0;
   if (firstSuccess) {
     try {
       await client.query('begin');
-      const result0  = await client.query(statements[0].query, statements[0].params)
-      if(result0.rowCount === 0){
-        return 0;
+      const result0 = await client.query(statements[0].query, toArray(statements[0].params));
+      if (result0 && result0.rowCount !== 0) {
+        const subs = statements.slice(1);
+        const arrPromise = subs.map(item => {
+          return client.query(item.query, item.params ? item.params : []);
+        });
+        await Promise.all(arrPromise).then(results => {
+          for (const obj of results) {
+            c += obj.rowCount;
+          }
+        });
+        c += result0.rowCount;
+        await client.query('commit');
+        return c;
       }
-      let listStatements = statements.slice(1);
-      const arrPromise = listStatements.map((item) => {
-        return client.query(item.query, item.params ? item.params : []);
-      });
-      await Promise.all(arrPromise).then(results => {
-        for (const obj of results) {
-          c += obj.rowCount;
-        }
-      });
-      c += result0.rowCount;
-      await client.query('commit');
-      return c;
     } catch (e) {
+      buildError(e);
       await client.query('rollback');
       throw e;
     } finally {
       client.release();
     }
-  }
-  else {
+  } else {
     try {
       await client.query('begin');
       const arrPromise = statements.map((item, i) => {
-          return client.query(item.query, item.params ? item.params : [])
+        return client.query(item.query, toArray(item.params));
       });
       await Promise.all(arrPromise).then(results => {
         for (const obj of results) {
@@ -184,22 +183,21 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
   if (firstSuccess) {
     try {
       await client.query('begin');
-      const result0  = await client.query(statements[0].query, statements[0].params)
-      if(result0.rowCount === 0){
-        return 0;
+      const result0 = await client.query(statements[0].query, toArray(statements[0].params));
+      if (result0 && result0.rowCount !== 0) {
+        const subs = statements.slice(1);
+        const arrPromise = subs.map((item, i) => {
+          return client.query(item.query, item.params ? item.params : []);
+        });
+        await Promise.all(arrPromise).then(results => {
+          for (const obj of results) {
+            c += obj.rowCount;
+          }
+        });
+        c += result0.rowCount;
+        await client.query('commit');
+        return c;
       }
-      let listStatements = statements.slice(1);
-      const arrPromise = listStatements.map((item) => {
-        return client.query(item.query, item.params ? item.params : []);
-      });
-      await Promise.all(arrPromise).then(results => {
-        for (const obj of results) {
-          c += obj.rowCount;
-        }
-      });
-      c += result0.rowCount;
-      await client.query('commit');
-      return c;
     } catch (e) {
       await client.query('rollback');
       throw e;
@@ -209,7 +207,9 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
   } else {
     try {
       await client.query('begin');
-      const arrPromise = statements.map((item) => client.query(item.query, toArray(item.params)));
+      const arrPromise = statements.map((item, i) => {
+        return client.query(item.query, toArray(item.params));
+      });
       await Promise.all(arrPromise).then(results => {
         for (const obj of results) {
           c += obj.rowCount;
@@ -220,6 +220,8 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
     } catch (e) {
       await client.query('rollback');
       throw e;
+    } finally {
+      client.release();
     }
   }
 }
