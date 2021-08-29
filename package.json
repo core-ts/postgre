@@ -1,6 +1,6 @@
 {
   "name": "postgre",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "postgre",
   "main": "./lib/index.js",
   "types": "./src/index.ts",

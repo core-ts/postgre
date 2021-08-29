@@ -433,7 +433,7 @@ export function version(attrs: Attributes): Attribute {
   return undefined;
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PostgreWriter<T> {
+export class PostgreSQLWriter<T> {
   pool?: Pool;
   version?: string;
   exec?: (sql: string, args?: any[]) => Promise<number>;
@@ -474,7 +474,7 @@ export class PostgreWriter<T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PostgreBatchWriter<T> {
+export class PostgreSQLBatchWriter<T> {
   pool?: Pool;
   version?: string;
   execute?: (statements: Statement[]) => Promise<number>;
@@ -529,7 +529,7 @@ export class PostgreSQLChecker {
       this.timeout = 4200;
     }
     if (!this.service) {
-      this.service = 'postgre';
+      this.service = 'sql';
     }
     this.check = this.check.bind(this);
     this.name = this.name.bind(this);
