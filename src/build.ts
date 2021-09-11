@@ -104,10 +104,10 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
             const p = buildParam(i++);
             values.push(p);
             if (v === true) {
-              const v2 = (attr.true ? attr.true : '1');
+              const v2 = (attr.true ? attr.true : `'1'`);
               args.push(v2);
             } else {
-              const v2 = (attr.false ? attr.false : '0');
+              const v2 = (attr.false ? attr.false : `'0'`);
               args.push(v2);
             }
           }
@@ -157,10 +157,10 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
             } else {
               x = buildParam(i++);
               if (v === true) {
-                const v2 = (attr.true ? attr.true : '1');
+                const v2 = (attr.true ? attr.true : `'1'`);
                 args.push(v2);
               } else {
-                const v2 = (attr.false ? attr.false : '0');
+                const v2 = (attr.false ? attr.false : `'0'`);
                 args.push(v2);
               }
             }
@@ -231,10 +231,10 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
               const p = buildParam(i++);
               values.push(p);
               if (v === true) {
-                const v2 = (attr.true ? attr.true : '1');
+                const v2 = (attr.true ? attr.true : `'1'`);
                 args.push(v2);
               } else {
-                const v2 = (attr.false ? attr.false : '0');
+                const v2 = (attr.false ? attr.false : `'0'`);
                 args.push(v2);
               }
             }
@@ -276,10 +276,10 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             } else {
               x = buildParam(i++);
               if (v === true) {
-                const v2 = (attr.true ? attr.true : '1');
+                const v2 = (attr.true ? attr.true : `'1'`);
                 args.push(v2);
               } else {
-                const v2 = (attr.false ? attr.false : '0');
+                const v2 = (attr.false ? attr.false : `'0'`);
                 args.push(v2);
               }
             }
