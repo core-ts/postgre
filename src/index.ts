@@ -9,6 +9,24 @@ export * from './build';
 export class resource {
   static string?: boolean;
 }
+
+export interface Config {
+  connectionString?: string | undefined;
+  host?: string | undefined;
+  port?: number;
+  server?: string | undefined;
+  database?: string | undefined;
+  user?: string | undefined;
+  password?: string | undefined;
+  multipleStatements?: boolean | undefined;
+  max?: number | undefined;
+  min?: number | undefined;
+  idleTimeoutMillis?: number | undefined;
+}
+export function createPool(conf: Config): Pool {
+  const pool = new Pool(conf);
+  return pool;
+}
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
     this.exec = this.exec.bind(this);
