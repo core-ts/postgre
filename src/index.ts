@@ -29,12 +29,17 @@ export function createPool(conf: Config): Pool {
 }
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
+    this.param = this.param.bind(this);
     this.exec = this.exec.bind(this);
     this.execBatch = this.execBatch.bind(this);
     this.query = this.query.bind(this);
     this.queryOne = this.queryOne.bind(this);
     this.execScalar = this.execScalar.bind(this);
     this.count = this.count.bind(this);
+  }
+  driver = 'postgres';
+  param(i: number): string {
+    return '$' + i;
   }
   exec(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = (ctx ? ctx : this.pool);
@@ -64,12 +69,17 @@ export class PoolManager implements Manager {
 // tslint:disable-next-line:max-classes-per-file
 export class PoolClientManager implements Manager {
   constructor(public client: PoolClient) {
+    this.param = this.param.bind(this);
     this.exec = this.exec.bind(this);
     this.execBatch = this.execBatch.bind(this);
     this.query = this.query.bind(this);
     this.queryOne = this.queryOne.bind(this);
     this.execScalar = this.execScalar.bind(this);
     this.count = this.count.bind(this);
+  }
+  driver = 'postgres';
+  param(i: number): string {
+    return '$' + i;
   }
   exec(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = (ctx ? ctx : this.client);

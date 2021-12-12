@@ -1,7 +1,7 @@
 {
-  "name": "postgre",
-  "version": "0.1.9",
-  "description": "postgre",
+  "name": "pg-extension",
+  "version": "0.1.0",
+  "description": "postgres",
   "main": "./lib/index.js",
   "types": "./src/index.ts",
   "scripts": {
@@ -21,10 +21,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com/core-ts/postgre"
+    "url": "git@github.com/core-ts/postgres"
   },
   "keywords": [
-    "postgre",
+    "postgres",
     "postgresql",
     "sql"
   ]
