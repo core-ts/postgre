@@ -27,6 +27,7 @@ export function createPool(conf: Config): Pool {
   const pool = new Pool(conf);
   return pool;
 }
+// tslint:disable-next-line:max-classes-per-file
 export class PoolManager implements Manager {
   constructor(public pool: Pool) {
     this.param = this.param.bind(this);
@@ -167,7 +168,6 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
   }
   const client = await pool.connect();
   let c = 0;
-  let er0: any;
   if (firstSuccess) {
     try {
       await client.query('begin');
@@ -185,20 +185,13 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
         c += result0.rowCount;
         await client.query('commit');
         client.release();
-        return c;
       }
+      return c;
     } catch (e) {
       buildError(e);
       await client.query('rollback');
-      er0 = e;
-      throw e;
-    } finally {
       client.release();
-      if (er0) {
-        throw er0;
-      } else {
-        return c;
-      }
+      throw e;
     }
   } else {
     try {
@@ -212,12 +205,12 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
         }
       });
       await client.query('commit');
+      client.release();
       return c;
     } catch (e) {
       await client.query('rollback');
-      throw e;
-    } finally {
       client.release();
+      throw e;
     }
   }
 }
@@ -228,7 +221,6 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
     return exec(client, statements[0].query, statements[0].params);
   }
   let c = 0;
-  let er0: any;
   if (firstSuccess) {
     try {
       await client.query('begin');
@@ -245,19 +237,12 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
         });
         c += result0.rowCount;
         await client.query('commit');
-        return c;
+        client.release();
       }
+      return c;
     } catch (e) {
       await client.query('rollback');
-      er0 = e;
       throw e;
-    } finally {
-      client.release();
-      if (er0) {
-        throw er0;
-      } else {
-        return c;
-      }
     }
   } else {
     try {
@@ -271,13 +256,12 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
         }
       });
       await client.query('commit');
+      client.release();
       return c;
     } catch (e) {
       await client.query('rollback');
-      er0 = e;
-      throw e;
-    } finally {
       client.release();
+      throw e;
     }
   }
 }
