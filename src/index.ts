@@ -451,7 +451,7 @@ export function isEmpty(s: string): boolean {
   return !(s && s.length > 0);
 }
 // tslint:disable-next-line:max-classes-per-file
-export class StringService {
+export class StringRepository {
   constructor(protected pool: Pool, public table: string, public column: string) {
     this.load = this.load.bind(this);
     this.save = this.save.bind(this);
@@ -628,4 +628,34 @@ function promiseTimeOut(timeoutInMilliseconds: number, promise: Promise<any>): P
       }, timeoutInMilliseconds);
     })
   ]);
+}
+// tslint:disable-next-line:max-classes-per-file
+export class StringService {
+  constructor(public table: string, public field: string, public query: <T>(sql: string, args?: any[]) => Promise<T[]>, public exec: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>) {
+    this.load = this.load.bind(this);
+    this.save = this.save.bind(this);
+  }
+  load(keyword: string, max?: number): Promise<string[]> {
+    const m = (max && max > 0 ? max : 20);
+    const k = keyword + '%';
+    return this.query(`select ${this.field} from ${this.table} where ${this.field} ilike $1 order by ${this.field} limit ${m}`, [k]).then(res => res.map(i => (i as any)[this.field]));
+  }
+  save(values: string[]): Promise<number> {
+    if (!values || values.length === 0) {
+      return Promise.resolve(0);
+    } else {
+      const s = buildStatements(this.table, this.field, values);
+      return this.exec(s);
+    }
+  }
+}
+function buildStatements(table: string, field: string, values: string[]): Statement[] {
+  const s: Statement[] = [];
+  for (const v of values) {
+    if (v && v.length > 0) {
+      const query = `insert into ${table}(${field}) values ($1) on conflict(${field}) do nothing`;
+      s.push({ query, params: [v] });
+    }
+  }
+  return s;
 }
