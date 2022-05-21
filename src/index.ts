@@ -631,10 +631,14 @@ function promiseTimeOut(timeoutInMilliseconds: number, promise: Promise<any>): P
 }
 // tslint:disable-next-line:max-classes-per-file
 export class StringService {
-  constructor(public table: string, public field: string, public query: <T>(sql: string, args?: any[]) => Promise<T[]>, public exec: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>) {
+  constructor(public table: string, public field: string, queryData: <T>(sql: string, args?: any[]) => Promise<T[]>, executeBatch: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>) {
+    this.query = queryData;
+    this.exec = executeBatch;
     this.load = this.load.bind(this);
     this.save = this.save.bind(this);
   }
+  query: <T>(sql: string, args?: any[]) => Promise<T[]>;
+  exec: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>;
   load(keyword: string, max?: number): Promise<string[]> {
     const m = (max && max > 0 ? max : 20);
     const k = keyword + '%';
@@ -653,8 +657,8 @@ function buildStatements(table: string, field: string, values: string[]): Statem
   const s: Statement[] = [];
   for (const v of values) {
     if (v && v.length > 0) {
-      const query = `insert into ${table}(${field}) values ($1) on conflict(${field}) do nothing`;
-      s.push({ query, params: [v] });
+      const sql = `insert into ${table}(${field}) values ($1) on conflict(${field}) do nothing`;
+      s.push({ query: sql, params: [v] });
     }
   }
   return s;

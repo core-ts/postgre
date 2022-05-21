@@ -1,1 +1,2 @@
-# postgres
+# pg-extension
+- postgres extension
