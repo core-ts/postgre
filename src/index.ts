@@ -450,6 +450,7 @@ export function getMapField(name: string, mp?: StringMap): string {
 export function isEmpty(s: string): boolean {
   return !(s && s.length > 0);
 }
+/*
 // tslint:disable-next-line:max-classes-per-file
 export class StringRepository {
   constructor(protected pool: Pool, public table: string, public column: string) {
@@ -474,7 +475,7 @@ export class StringRepository {
     return exec(this.pool, s, values);
   }
 }
-
+*/
 export function version(attrs: Attributes): Attribute|undefined {
   const ks = Object.keys(attrs);
   for (const k of ks) {
@@ -631,14 +632,14 @@ function promiseTimeOut(timeoutInMilliseconds: number, promise: Promise<any>): P
 }
 // tslint:disable-next-line:max-classes-per-file
 export class StringService {
-  constructor(public table: string, public field: string, queryData: <T>(sql: string, args?: any[]) => Promise<T[]>, executeBatch: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>) {
+  constructor(public table: string, public field: string, queryData: <T>(sql: string, args?: any[]) => Promise<T[]>, execute: (sql: string, args?: any[]) => Promise<number>) {
     this.query = queryData;
-    this.exec = executeBatch;
+    this.exec = execute;
     this.load = this.load.bind(this);
     this.save = this.save.bind(this);
   }
   query: <T>(sql: string, args?: any[]) => Promise<T[]>;
-  exec: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>;
+  exec: (sql: string, args?: any[]) => Promise<number>;
   load(keyword: string, max?: number): Promise<string[]> {
     const m = (max && max > 0 ? max : 20);
     const k = keyword + '%';
@@ -648,18 +649,23 @@ export class StringService {
     if (!values || values.length === 0) {
       return Promise.resolve(0);
     } else {
-      const s = buildStatements(this.table, this.field, values);
-      return this.exec(s);
+      const arr: string[] = [];
+      const ps: string[] = [];
+      let i = 1;
+      for (const v of values) {
+        if (v && v.length > 0) {
+          arr.push(`($${i++})`);
+          ps.push(v);
+        }
+      }
+      if (arr.length === 0) {
+        return Promise.resolve(0);
+      } else {
+        const sql = `insert into ${this.table}(${this.field}) values ${arr.join(',')} on conflict(${this.field}) do nothing`;
+        console.log(sql);
+        return this.exec(sql, ps);
+      }
     }
   }
 }
-function buildStatements(table: string, field: string, values: string[]): Statement[] {
-  const s: Statement[] = [];
-  for (const v of values) {
-    if (v && v.length > 0) {
-      const sql = `insert into ${table}(${field}) values ($1) on conflict(${field}) do nothing`;
-      s.push({ query: sql, params: [v] });
-    }
-  }
-  return s;
-}
+export const StringRepository = StringService;
