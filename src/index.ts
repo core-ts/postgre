@@ -669,3 +669,61 @@ export class StringService {
   }
 }
 export const StringRepository = StringService;
+
+
+export interface MinDB {
+  param(i: number): string;
+  exec(sql: string, args?: any[], ctx?: any): Promise<number>;
+  query<T>(sql: string, args?: any[], m?: StringMap): Promise<T[]>;
+}
+export interface Passcode {
+  code: string;
+  expiredAt: Date;
+}
+// tslint:disable-next-line:max-classes-per-file
+export class CodeRepository<ID> {
+  constructor(public db: MinDB, public table: string, id?: string, expiredAt?: string, passcode?: string) {
+    this.id = (id ? id : 'id');
+    this.code = (passcode ? passcode : 'code');
+    this.expiredAt = (expiredAt ? expiredAt : 'expiredat');
+    this.load = this.load.bind(this);
+    this.delete = this.delete.bind(this);
+    this.save = this.save.bind(this);
+  }
+  id: string;
+  code: string;
+  expiredAt: string;
+  save(id: ID, passcode: string, expiredAt: Date): Promise<number> {
+    const query = `
+      insert into ${this.table} (${this.id}, ${this.code}, ${this.expiredAt})
+      values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)})
+      on conflict (${this.id})
+      do update set ${this.code} = ${this.db.param(4)}, ${this.expiredAt} = ${this.db.param(5)}`;
+    console.log(query);
+    return this.db.exec(query, [id, passcode, expiredAt, passcode, expiredAt]);
+  }
+  load(id: ID): Promise<Passcode|null|undefined> {
+    const query = `select ${this.code} as code, ${this.expiredAt} as expiredat from ${this.table} where ${this.id} = ${this.db.param(1)}`;
+    return this.db.query(query, [id]).then(v => {
+      if (!v || v.length === 0) {
+        return null;
+      } else {
+        const obj: any = {};
+        obj.code = (v[0] as any)['code'];
+        obj.expiredAt = (v[0] as any)['expiredat'];
+        return obj;
+      }
+    });
+  }
+  delete(id: ID): Promise<number> {
+    const query = `delete from ${this.table} where ${this.id} = ${this.db.param(1)}`;
+    return this.db.exec(query, [id]);
+  }
+}
+export const PasscodeRepository = CodeRepository;
+export const SqlPasscodeRepository = CodeRepository;
+export const SqlCodeRepository = CodeRepository;
+export const CodeService = CodeRepository;
+export const PasscodeService = CodeRepository;
+export const SqlPasscodeService = CodeRepository;
+export const SqlCodeService = CodeRepository;
