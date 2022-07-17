@@ -662,7 +662,6 @@ export class StringService {
         return Promise.resolve(0);
       } else {
         const sql = `insert into ${this.table}(${this.field}) values ${arr.join(',')} on conflict(${this.field}) do nothing`;
-        console.log(sql);
         return this.exec(sql, ps);
       }
     }
@@ -694,17 +693,16 @@ export class CodeRepository<ID> {
   code: string;
   expiredAt: string;
   save(id: ID, passcode: string, expiredAt: Date): Promise<number> {
-    const query = `
+    const sql = `
       insert into ${this.table} (${this.id}, ${this.code}, ${this.expiredAt})
       values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)})
       on conflict (${this.id})
       do update set ${this.code} = ${this.db.param(4)}, ${this.expiredAt} = ${this.db.param(5)}`;
-    console.log(query);
-    return this.db.exec(query, [id, passcode, expiredAt, passcode, expiredAt]);
+    return this.db.exec(sql, [id, passcode, expiredAt, passcode, expiredAt]);
   }
   load(id: ID): Promise<Passcode|null|undefined> {
-    const query = `select ${this.code} as code, ${this.expiredAt} as expiredat from ${this.table} where ${this.id} = ${this.db.param(1)}`;
-    return this.db.query(query, [id]).then(v => {
+    const sql = `select ${this.code} as code, ${this.expiredAt} as expiredat from ${this.table} where ${this.id} = ${this.db.param(1)}`;
+    return this.db.query(sql, [id]).then(v => {
       if (!v || v.length === 0) {
         return null;
       } else {
@@ -716,8 +714,8 @@ export class CodeRepository<ID> {
     });
   }
   delete(id: ID): Promise<number> {
-    const query = `delete from ${this.table} where ${this.id} = ${this.db.param(1)}`;
-    return this.db.exec(query, [id]);
+    const sql = `delete from ${this.table} where ${this.id} = ${this.db.param(1)}`;
+    return this.db.exec(sql, [id]);
   }
 }
 export const PasscodeRepository = CodeRepository;
