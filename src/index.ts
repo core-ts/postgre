@@ -769,7 +769,7 @@ export interface SavedItem<ID, T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class ArrayRepository<ID, T> {
-  constructor(public query: <K>(sql: string, args?: any[]) => Promise<K[]>, public exec: (sql: string, args?: any[]) => Promise<number>, public table: string, public field: string, id?: string) {
+  constructor(public select: <K>(sql: string, args?: any[]) => Promise<K[]>, public execute: (sql: string, args?: any[]) => Promise<number>, public table: string, public field: string, id?: string) {
     this.id = (id && id.length > 0 ? id : 'id');
     this.load = this.load.bind(this);
     this.insert = this.insert.bind(this);
@@ -777,7 +777,7 @@ export class ArrayRepository<ID, T> {
   }
   id: string;
   load(id: ID): Promise<T[]|null> {
-    return this.query<SavedItem<ID, T>>(`select ${this.id} as id, ${this.field} as items from ${this.table} where ${this.id} = $1`, [id]).then(objs => {
+    return this.select<SavedItem<ID, T>>(`select ${this.id} as id, ${this.field} as items from ${this.table} where ${this.id} = $1`, [id]).then(objs => {
       if (objs && objs.length > 0) {
         if (objs[0].items && objs[0].items.length > 0) {
           return objs[0].items;
@@ -791,10 +791,77 @@ export class ArrayRepository<ID, T> {
   }
   insert(id: ID, arr: T[]): Promise<number> {
     const sql = `insert into ${this.table}(${this.id}, ${this.field}) values ($1, $2)`;
-    return this.exec(sql, [id, arr]);
+    return this.execute(sql, [id, arr]);
   }
   update(id: ID, arr: T[]): Promise<number> {
     const sql = `update ${this.table} set ${this.field} = $1 where ${this.id} = $2`;
-    return this.exec(sql, [arr, id]);
+    return this.execute(sql, [arr, id]);
   }
 }
+// tslint:disable-next-line:max-classes-per-file
+export class FollowService<ID> {
+  constructor(
+    public execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    public followingTable: string,
+    public id: string,
+    public following: string,
+    public followerTable: string,
+    public followerId: string,
+    public follower: string,
+    public infoTable: string,
+    public infoId: string,
+    public followerCount: string,
+    public followingCount: string) {
+    this.follow = this.follow.bind(this);
+    this.unfollow = this.unfollow.bind(this);
+    this.checkFollow = this.checkFollow.bind(this);
+  }
+  follow(id: ID, target: ID): Promise<number | undefined> {
+    const double = `select * from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2 `;
+    const query1 = `insert into ${this.followingTable}(${this.id}, ${this.following}) values ($1, $2)`;
+    const query2 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}) values ($1, $2)`;
+    const query3 = `
+            insert into ${this.infoTable}(${this.infoId},${this.followingCount}, ${this.followerCount})
+            values ($1, 1, 0)
+            on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`;
+    const query4 = `
+            insert into ${this.infoTable}(${this.infoId},${this.followingCount}, ${this.followerCount})
+            values ($1, 0, 1)
+            on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`;
+    return this.execute([{ query: double, params: [id, target] }], true).then(data => {
+      if (!data) {
+        return this.execute([
+          { query: query1, params: [id, target] },
+          { query: query2, params: [target, id] },
+          { query: query3, params: [id] },
+          { query: query4, params: [target] },
+        ], true);
+      } else {
+        return Promise.resolve(0);
+      }
+    });
+  }
+  unfollow(id: ID, target: ID): Promise<number> {
+    const query1 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`;
+    const query2 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`;
+    const query3 = `
+            update ${this.infoTable}
+            set ${this.followingCount} = ${this.followingCount} -1
+            where ${this.infoId} = $1`;
+    const query4 = `
+            update ${this.infoTable}
+            set ${this.followerCount} =${this.followerCount} - 1
+            where ${this.infoId} = $1`;
+    return this.execute([
+      { query: query1, params: [id, target] },
+      { query: query2, params: [target, id] },
+      { query: query3, params: [id] },
+      { query: query4, params: [target] },
+    ], true);
+  }
+  checkFollow(id: ID, target: ID): Promise<number> {
+    const check = `select ${this.id} from ${this.followingTable} where ${this.id} = $1 and ${this.following} = $2 `;
+    return this.execute([{ query: check, params: [id, target] }], true);
+  }
+}
+export const FollowRepository = FollowService;
