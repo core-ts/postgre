@@ -1,5 +1,5 @@
 import {Pool, PoolClient, QueryResult, QueryResultRow} from 'pg';
-import {buildToSave, buildToSaveBatch} from './build';
+import {buildToSave, buildToSaveBatch, param} from './build';
 import {Attribute, Attributes, Manager, Statement, StringMap} from './metadata';
 
 export * from './metadata';
@@ -725,3 +725,41 @@ export const CodeService = CodeRepository;
 export const PasscodeService = CodeRepository;
 export const SqlPasscodeService = CodeRepository;
 export const SqlCodeService = CodeRepository;
+
+export interface URL<ID> {
+  id: ID;
+  url: string;
+}
+// tslint:disable-next-line:max-classes-per-file
+export class UrlQuery<ID> {
+  constructor(protected queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, protected table: string, url?: string, id?: string) {
+    this.id = (id && id.length > 0 ? id : 'id');
+    this.url = (url && url.length > 0 ? url : 'url');
+    this.query = this.query.bind(this);
+    this.load = this.load.bind(this);
+  }
+  protected id: string;
+  protected url: string;
+  load(ids: ID[]): Promise<URL<ID>[]> {
+    return this.query(ids);
+  }
+  query(ids: ID[]): Promise<URL<ID>[]> {
+    if (!ids || ids.length === 0) {
+      const s: URL<ID>[] = [];
+      return Promise.resolve(s);
+    }
+    const ps: any[] = [];
+    const pv: string[] = [];
+    const l = ids.length;
+    for (let i = 1; i <= l; i++) {
+      ps.push(ids[i - 1]);
+      pv.push(param(i));
+    }
+    const sql = `select ${this.id} as id, ${this.url} as url from ${this.table} where ${this.id} in (${pv.join(',')}) and ${this.url} is not null order by ${this.id}`;
+    return this.queryF(sql, ps);
+  }
+}
+export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, table: string, url?: string, id?: string): ((ids: ID[]) => Promise<URL<ID>[]>) {
+  const q = new UrlQuery<ID>(queryF, table, url, id);
+  return q.query;
+}
