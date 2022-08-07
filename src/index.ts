@@ -763,3 +763,38 @@ export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promis
   const q = new UrlQuery<ID>(queryF, table, url, id);
   return q.query;
 }
+export interface SavedItem<ID, T> {
+  id: ID;
+  items: T[];
+}
+// tslint:disable-next-line:max-classes-per-file
+export class ArrayRepository<ID, T> {
+  constructor(public query: <K>(sql: string, args?: any[]) => Promise<K[]>, public exec: (sql: string, args?: any[]) => Promise<number>, public table: string, public field: string, id?: string) {
+    this.id = (id && id.length > 0 ? id : 'id');
+    this.load = this.load.bind(this);
+    this.insert = this.insert.bind(this);
+    this.update = this.update.bind(this);
+  }
+  id: string;
+  load(id: ID): Promise<T[]|null> {
+    return this.query<SavedItem<ID, T>>(`select ${this.id} as id, ${this.field} as items from ${this.table} where ${this.id} = $1`, [id]).then(objs => {
+      if (objs && objs.length > 0) {
+        if (objs[0].items && objs[0].items.length > 0) {
+          return objs[0].items;
+        } else {
+          return [];
+        }
+      } else {
+        return null;
+      }
+    });
+  }
+  insert(id: ID, arr: T[]): Promise<number> {
+    const sql = `insert into ${this.table}(${this.id}, ${this.field}) values ($1, $2)`;
+    return this.exec(sql, [id, arr]);
+  }
+  update(id: ID, arr: T[]): Promise<number> {
+    const sql = `update ${this.table} set ${this.field} = $1 where ${this.id} = $2`;
+    return this.exec(sql, [arr, id]);
+  }
+}
