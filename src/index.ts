@@ -871,10 +871,14 @@ export interface Reaction {
   author: string;
   reaction: number;
 }
+export interface DB2 {
+  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>;
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>;
+}
 // tslint:disable-next-line:max-classes-per-file
 export class ReactionService<ID> {
   constructor(
-    public db: DB,
+    public db: DB2,
     public userreactionTable: string,
     public id: string,
     public author: string,
