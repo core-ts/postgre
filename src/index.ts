@@ -494,7 +494,7 @@ export class PostgreSQLWriter<T> {
   exec?: (sql: string, args?: any[]) => Promise<number>;
   map?: (v: T) => T;
   param?: (i: number) => string;
-  constructor(pool: Pool|((sql: string, args?: any[]) => Promise<number>), public table: string, public attributes: Attributes, toDB?: (v: T) => T, buildParam?: (i: number) => string) {
+  constructor(pool: Pool|((sql: string, args?: any[]) => Promise<number>), public table: string, public attributes: Attributes, public oneIfSuccess?: boolean, toDB?: (v: T) => T, buildParam?: (i: number) => string) {
     this.write = this.write.bind(this);
     if (typeof pool === 'function') {
       this.exec = pool;
@@ -519,12 +519,88 @@ export class PostgreSQLWriter<T> {
     const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param);
     if (stmt) {
       if (this.exec) {
-        return this.exec(stmt.query, stmt.params);
+        if (this.oneIfSuccess) {
+          return this.exec(stmt.query, stmt.params).then(ct => ct > 0 ? 1 : 0);
+        } else {
+          return this.exec(stmt.query, stmt.params);
+        }
       } else {
-        return exec(this.pool as any, stmt.query, stmt.params);
+        if (this.oneIfSuccess) {
+          return exec(this.pool as any, stmt.query, stmt.params).then(ct => ct > 0 ? 1 : 0);
+        } else {
+          return exec(this.pool as any, stmt.query, stmt.params);
+        }
       }
     } else {
       return Promise.resolve(0);
+    }
+  }
+}
+// tslint:disable-next-line:max-classes-per-file
+export class PostgreSQLStreamWriter<T> {
+  list: T[] = [];
+  size = 0;
+  pool?: Pool;
+  version?: string;
+  execBatch?: (statements: Statement[]) => Promise<number>;
+  map?: (v: T) => T;
+  param?: (i: number) => string;
+  constructor(con: Pool | ((statements: Statement[]) => Promise<number>), public table: string, public attributes: Attributes, size?: number, toDB?: (v: T) => T, buildParam?: (i: number) => string) {
+    this.write = this.write.bind(this);
+    this.flush = this.flush.bind(this);
+    if (typeof con === 'function') {
+      this.execBatch = con;
+    } else {
+      this.pool = con;
+    }
+    this.param = buildParam;
+    this.map = toDB;
+    const x = version(attributes);
+    if (x) {
+      this.version = x.name;
+    }
+    if (size) {
+      this.size = size;
+    }
+  }
+  write(obj: T): Promise<number> {
+    if (!obj) {
+      return Promise.resolve(0);
+    }
+    let obj2: NonNullable<T> | T = obj;
+    if (this.map) {
+      obj2 = this.map(obj);
+      this.list.push(obj2);
+    } else {
+      this.list.push(obj);
+    }
+    if (this.list.length < this.size) {
+      return Promise.resolve(0);
+    } else {
+      return this.flush();
+    }
+  }
+  flush(): Promise<number> {
+    if (!this.list || this.list.length === 0) {
+      return Promise.resolve(0);
+    } else {
+      const total = this.list.length;
+      const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.version, this.param);
+      if (stmt) {
+        if (this.execBatch) {
+          return this.execBatch(stmt).then(r => {
+            this.list = [];
+            return total;
+          });
+        } else {
+          return execBatch(this.pool as any, stmt).then(r => {
+            this.list = [];
+            return total;
+          });
+        }
+      } else {
+        return Promise.resolve(0);
+      }
     }
   }
 }
@@ -905,7 +981,7 @@ export class ReactionService<ID> {
         obj['l' + reaction] = '1';
         const query1 = `insert into ${this.userreactionTable}(${this.id},${this.author},${this.reaction}) values ($1, $2, $3)`;
         const query2 = `insert into ${this.userinfoTable}(${this.infoId},${this.prefix}1${this.suffix},${this.prefix}2${this.suffix},${this.prefix}3${this.suffix},${this.reactioncount}) values ($1, ${obj['l1']}, ${obj['l2']},${obj['l3']},1)
-          on conflict (${this.id}) do update set ${this.prefix}1${this.suffix} = ${obj['l1']}, ${this.prefix}2${this.suffix} = ${obj['l2']}, ${this.prefix}3${this.suffix} = ${obj['l3']}, ${this.reactioncount}=1`;
+          on conflict (${this.id}) do update set ${this.prefix}1${this.suffix} = ${this.userinfoTable}.${this.prefix}1${this.suffix} + ${obj['l1']}, ${this.prefix}2${this.suffix} = ${this.userinfoTable}.${this.prefix}2${this.suffix} + ${obj['l2']}, ${this.prefix}3${this.suffix} = ${this.userinfoTable}.${this.prefix}3${this.suffix} + ${obj['l3']}, ${this.reactioncount}=${this.reactioncount} + 1`;
         const s1: Statement = { query: query1, params: [id, author, reaction] };
         const s2: Statement = { query: query2, params: [id] };
         return this.db.execBatch([s1, s2]);
