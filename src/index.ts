@@ -1,6 +1,6 @@
 import {Pool, PoolClient, QueryResult, QueryResultRow} from 'pg';
 import {buildToSave, buildToSaveBatch, param} from './build';
-import {Attribute, Attributes, DB, Manager, Statement, StringMap} from './metadata';
+import {Attribute, Attributes, Manager, Statement, StringMap} from './metadata';
 
 export * from './metadata';
 export * from './build';
@@ -794,13 +794,27 @@ export class CodeRepository<ID> {
     return this.db.exec(sql, [id]);
   }
 }
-export const PasscodeRepository = CodeRepository;
-export const SqlPasscodeRepository = CodeRepository;
-export const SqlCodeRepository = CodeRepository;
-export const CodeService = CodeRepository;
-export const PasscodeService = CodeRepository;
-export const SqlPasscodeService = CodeRepository;
-export const SqlCodeService = CodeRepository;
+// tslint:disable-next-line:max-classes-per-file
+export class PasscodeRepository<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class SqlPasscodeRepository<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class SqlCodeRepository<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class CodeService<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class PasscodeService<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class SqlPasscodeService<ID> extends CodeRepository<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class SqlCodeService<ID> extends CodeRepository<ID> {
+}
 
 export interface URL<ID> {
   id: ID;
@@ -940,7 +954,9 @@ export class FollowService<ID> {
     return this.execute([{ query: check, params: [id, target] }], true);
   }
 }
-export const FollowRepository = FollowService;
+// tslint:disable-next-line:max-classes-per-file
+export class FollowRepository<ID> extends FollowService<ID> {
+}
 
 export interface Reaction {
   id: string;
@@ -1016,6 +1032,12 @@ export class ReactionService<ID> {
     });
   }
 }
-export const ReactService = ReactionService;
-export const ReactRepository = ReactionService;
-export const ReactionRepository = ReactionService;
+// tslint:disable-next-line:max-classes-per-file
+export class ReactService<ID> extends ReactionService<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class ReactRepository<ID> extends ReactionService<ID> {
+}
+// tslint:disable-next-line:max-classes-per-file
+export class ReactionRepository<ID> extends ReactionService<ID> {
+}
