@@ -132,11 +132,11 @@ export function exec(client: Query, sql: string, args?: any[]): Promise<number> 
 export function query<T>(client: Query, sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
   const p = toArray(args);
   return new Promise<T[]>((resolve, reject) => {
-    return client.query<T>(sql, p, (err, results) => {
+    return client.query<QueryResult>(sql, p, (err, results) => {
       if (err) {
         return reject(err);
       } else {
-        return resolve(handleResults(results.rows, m, bools));
+        return resolve(handleResults(results.rows as any, m, bools));
       }
     });
   });
@@ -371,7 +371,7 @@ export function map<T>(obj: T, m?: StringMap): any {
     return obj;
   }
   const obj2: any = {};
-  const keys = Object.keys(obj);
+  const keys = Object.keys(obj as any);
   for (const key of keys) {
     let k0 = m[key];
     if (!k0) {
@@ -392,7 +392,7 @@ export function mapArray<T>(results: T[], m?: StringMap): T[] {
   const objs = [];
   const length = results.length;
   for (let i = 0; i < length; i++) {
-    const obj = results[i];
+    const obj: any = results[i];
     const obj2: any = {};
     const keys = Object.keys(obj);
     for (const key of keys) {
@@ -400,7 +400,7 @@ export function mapArray<T>(results: T[], m?: StringMap): T[] {
       if (!k0) {
         k0 = key;
       }
-      obj2[k0] = (obj as any)[key];
+      obj2[k0] = obj[key];
     }
     objs.push(obj2);
   }
@@ -512,7 +512,7 @@ export class PostgreSQLWriter<T> {
     if (!obj) {
       return Promise.resolve(0);
     }
-    let obj2 = obj;
+    let obj2: NonNullable<T> | T = obj;
     if (this.map) {
       obj2 = this.map(obj);
     }
@@ -830,11 +830,14 @@ export class UrlQuery<ID> {
   }
   protected id: string;
   protected url: string;
+  // tslint:disable-next-line:array-type
   load(ids: ID[]): Promise<URL<ID>[]> {
     return this.query(ids);
   }
+  // tslint:disable-next-line:array-type
   query(ids: ID[]): Promise<URL<ID>[]> {
     if (!ids || ids.length === 0) {
+      // tslint:disable-next-line:array-type
       const s: URL<ID>[] = [];
       return Promise.resolve(s);
     }
@@ -849,6 +852,7 @@ export class UrlQuery<ID> {
     return this.queryF(sql, ps);
   }
 }
+// tslint:disable-next-line:array-type
 export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, table: string, url?: string, id?: string): ((ids: ID[]) => Promise<URL<ID>[]>) {
   const q = new UrlQuery<ID>(queryF, table, url, id);
   return q.query;
@@ -986,8 +990,8 @@ export class ReactionService<ID> {
     this.checkReaction = this.checkReaction.bind(this);
   }
   react(id: ID, author: ID, reaction: string): Promise<number> {
-    const query = `select reaction from ${this.userreactionTable} where ${this.id} = $1 and ${this.author} = $2`;
-    return this.db.query<Reaction>(query, [id, author]).then(r => {
+    const sql = `select reaction from ${this.userreactionTable} where ${this.id} = $1 and ${this.author} = $2`;
+    return this.db.query<Reaction>(sql, [id, author]).then(r => {
       if (r.length <= 0) {
         const obj: any = {
           l1: '0',
@@ -1022,8 +1026,8 @@ export class ReactionService<ID> {
     return this.db.execBatch([s1, s2], true);
   }
   checkReaction(id: ID, author: ID): Promise<number> {
-    const query = `select reaction from ${this.userreactionTable} where ${this.id} = $1 and ${this.author} = $2`;
-    return this.db.query<Reaction>(query, [id, author]).then(r => {
+    const sql = `select reaction from ${this.userreactionTable} where ${this.id} = $1 and ${this.author} = $2`;
+    return this.db.query<Reaction>(sql, [id, author]).then(r => {
       if (r && r.length > 0) {
         return r[0].reaction;
       } else {
