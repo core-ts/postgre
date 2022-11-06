@@ -43,7 +43,7 @@ export function metadata(attrs: Attributes): Metadata {
     if (attr.version) {
       m.version = k;
     }
-    const field = (attr.field ? attr.field : k);
+    const field = (attr.column ? attr.column : k);
     const s = field.toLowerCase();
     if (s !== k) {
       mp[s] = k;
@@ -83,7 +83,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
       v = attr.default;
     }
     if (v !== undefined && v != null && !attr.ignored && !attr.noinsert) {
-      const field = (attr.field ? attr.field : k);
+      const field = (attr.column ? attr.column : k);
       cols.push(field);
       if (k === ver) {
         isVersion = true;
@@ -121,7 +121,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
   }
   if (!isVersion && ver && ver.length > 0) {
     const attr = attrs[ver];
-    const field = (attr.field ? attr.field : ver);
+    const field = (attr.column ? attr.column : ver);
     cols.push(field);
     values.push(`${1}`);
   }
@@ -139,7 +139,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
       if (v !== undefined) {
         const attr = attrs[k];
         if (attr && !attr.key && !attr.ignored && !attr.noupdate) {
-          const field = (attr.field ? attr.field : k);
+          const field = (attr.column ? attr.column : k);
           let x: string;
           if (v == null) {
             x = 'null';
@@ -174,7 +174,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
     }
     const fks: string[] = [];
     for (const pk of pks) {
-      const field = (pk.field ? pk.field : pk.name);
+      const field = (pk.column ? pk.column : pk.name);
       if (field) {
         fks.push(field);
       }
@@ -213,7 +213,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
         v = attr.default;
       }
       if (v != null && v !== undefined && !attr.ignored && !attr.noinsert) {
-        const field = (attr.field ? attr.field : k);
+        const field = (attr.column ? attr.column : k);
         cols.push(field);
         if (k === ver) {
           isVersion = true;
@@ -251,7 +251,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
     }
     if (!isVersion && ver && ver.length > 0) {
       const attr = attrs[ver];
-      const field = (attr.field ? attr.field : ver);
+      const field = (attr.column ? attr.column : ver);
       cols.push(field);
       values.push(`${1}`);
     }
@@ -261,7 +261,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       if (v !== undefined) {
         const attr = attrs[k];
         if (attr && !attr.key && !attr.ignored && k !== ver && !attr.noupdate) {
-          const field = (attr.field ? attr.field : k);
+          const field = (attr.column ? attr.column : k);
           let x: string;
           if (v == null) {
             x = 'null';
@@ -296,7 +296,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
     }
     const fks: string[] = [];
     for (const pk of pks) {
-      const field = (pk.field ? pk.field : pk.name);
+      const field = (pk.column ? pk.column : pk.name);
       if (field) {
         fks.push(field);
       }
