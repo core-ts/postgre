@@ -819,17 +819,22 @@ export class SqlCodeService<ID> extends CodeRepository<ID> {
 export interface URL<ID> {
   id: ID;
   url: string;
+  name: string;
 }
 // tslint:disable-next-line:max-classes-per-file
 export class UrlQuery<ID> {
-  constructor(protected queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, protected table: string, url?: string, id?: string) {
+  constructor(protected queryF: <T2>(sql: string, args?: any[]) => Promise<T2[]>, protected table: string, url?: string, id?: string, name?: string, displayName?: string) {
     this.id = (id && id.length > 0 ? id : 'id');
     this.url = (url && url.length > 0 ? url : 'url');
-    this.query = this.query.bind(this);
+    this.name = (name && name.length > 0 ? name : 'name');
+    this.displayName = (displayName && displayName.length > 0 ? displayName : 'displayname');
     this.load = this.load.bind(this);
+    this.query = this.query.bind(this);
   }
   protected id: string;
   protected url: string;
+  protected name: string;
+  protected displayName: string;
   // tslint:disable-next-line:array-type
   load(ids: ID[]): Promise<URL<ID>[]> {
     return this.query(ids);
@@ -848,13 +853,13 @@ export class UrlQuery<ID> {
       ps.push(ids[i - 1]);
       pv.push(param(i));
     }
-    const sql = `select ${this.id} as id, ${this.url} as url from ${this.table} where ${this.id} in (${pv.join(',')}) and ${this.url} is not null order by ${this.id}`;
+    const sql = `select ${this.id} as id, ${this.url} as url, case when ${this.displayName} is not null then ${this.displayName} else ${this.name} end as name from ${this.table} where ${this.id} in (${pv.join(',')}) and ${this.url} is not null order by ${this.id}`;
     return this.queryF(sql, ps);
   }
 }
 // tslint:disable-next-line:array-type
-export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, table: string, url?: string, id?: string): ((ids: ID[]) => Promise<URL<ID>[]>) {
-  const q = new UrlQuery<ID>(queryF, table, url, id);
+export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promise<T[]>, table: string, url?: string, id?: string, name?: string, displayName?: string): ((ids: ID[]) => Promise<URL<ID>[]>) {
+  const q = new UrlQuery<ID>(queryF, table, url, id, name, displayName);
   return q.query;
 }
 export interface SavedItem<ID, T> {
