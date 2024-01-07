@@ -124,7 +124,7 @@ export function exec(client: Query, sql: string, args?: any[]): Promise<number> 
         buildError(err);
         return reject(err);
       } else {
-        return resolve(results.rowCount);
+        return resolve(results.rowCount ? results.rowCount : 0);
       }
     });
   });
@@ -179,10 +179,14 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
         });
         await Promise.all(arrPromise).then(results => {
           for (const obj of results) {
-            c += obj.rowCount;
+            if (obj.rowCount) {
+              c += obj.rowCount;
+            }
           }
         });
-        c += result0.rowCount;
+        if (result0.rowCount) {
+          c += result0.rowCount;
+        }
         await client.query('commit');
         client.release();
       }
@@ -201,7 +205,9 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
       });
       await Promise.all(arrPromise).then(results => {
         for (const obj of results) {
-          c += obj.rowCount;
+          if (obj.rowCount) {
+            c += obj.rowCount;
+          }
         }
       });
       await client.query('commit');
@@ -232,10 +238,14 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
         });
         await Promise.all(arrPromise).then(results => {
           for (const obj of results) {
-            c += obj.rowCount;
+            if (obj.rowCount) {
+              c += obj.rowCount;
+            }
           }
         });
-        c += result0.rowCount;
+        if (result0.rowCount) {
+          c += result0.rowCount;
+        }
         await client.query('commit');
         client.release();
       }
@@ -252,7 +262,9 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
       });
       await Promise.all(arrPromise).then(results => {
         for (const obj of results) {
-          c += obj.rowCount;
+          if (obj.rowCount) {
+            c += obj.rowCount;
+          }
         }
       });
       await client.query('commit');
